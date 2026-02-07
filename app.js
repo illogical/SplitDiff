@@ -27,7 +27,6 @@ let activeTabId = null;
 
 const elements = {
   left: {
-    file: document.getElementById("left-file"),
     lang: document.getElementById("left-lang"),
     name: document.getElementById("left-name"),
     view: document.getElementById("left-view"),
@@ -35,7 +34,6 @@ const elements = {
     lines: document.getElementById("left-lines"),
   },
   right: {
-    file: document.getElementById("right-file"),
     lang: document.getElementById("right-lang"),
     name: document.getElementById("right-name"),
     view: document.getElementById("right-view"),
@@ -46,8 +44,6 @@ const elements = {
   syncToggle: document.getElementById("syncToggle"),
   swapBtn: document.getElementById("swapBtn"),
   clearBtn: document.getElementById("clearBtn"),
-  prevFileBtn: document.getElementById("prevFileBtn"),
-  nextFileBtn: document.getElementById("nextFileBtn"),
   firstChangeBtn: document.getElementById("firstChangeBtn"),
   prevChangeBtn: document.getElementById("prevChangeBtn"),
   nextChangeBtn: document.getElementById("nextChangeBtn"),
@@ -72,7 +68,6 @@ const elements = {
   modalConfirm: document.getElementById("modal-confirm"),
   leftCopyBtn: document.getElementById("left-copy"),
   rightCopyBtn: document.getElementById("right-copy"),
-  hintActions: document.querySelectorAll(".hint-action"),
 };
 
 const extensionMap = {
@@ -866,39 +861,6 @@ async function copySideToClipboard(side) {
   }
 }
 
-function hasChangesFromText(leftText, rightText) {
-  if (!leftText && !rightText) return false;
-  const leftLines = (leftText || "").split("\n").map(normalizeForCompare);
-  const rightLines = (rightText || "").split("\n").map(normalizeForCompare);
-  if (leftLines.length !== rightLines.length) return true;
-  for (let i = 0; i < leftLines.length; i++) {
-    if (leftLines[i] !== rightLines[i]) return true;
-  }
-  return false;
-}
-
-function tabHasChanges(tab) {
-  const content = loadTabContent(tab.id);
-  if (!content) return false;
-  return hasChangesFromText(content.left?.text || "", content.right?.text || "");
-}
-
-function goToAdjacentTabWithChanges(direction) {
-  if (!tabs.length) return;
-  persistActiveTab();
-  const startIndex = tabs.findIndex((tab) => tab.id === activeTabId);
-  const total = tabs.length;
-  for (let step = 1; step <= total; step++) {
-    const index = (startIndex + direction * step + total) % total;
-    const tab = tabs[index];
-    if (tabHasChanges(tab)) {
-      setActiveTab(tab.id);
-      return;
-    }
-  }
-  flashSummary("No other tabs with changes.");
-}
-
 function handleLineClick(side, event) {
   const row = event.target.closest(".line");
   if (!row) return;
@@ -945,12 +907,12 @@ function updateDiff() {
     diffUi.activeHunkIndex = -1;
     diffUi.activeHunkId = null;
     updateHunkStatus();
-  updateSearchMatches({ keepActive: false });
-  applyDecorations();
-  updateSearchHighlights();
-  updateHorizontalScrollbar();
-  return;
-}
+    updateSearchMatches({ keepActive: false });
+    applyDecorations();
+    updateSearchHighlights();
+    updateHorizontalScrollbar();
+    return;
+  }
 
   const leftCompare = leftLines.map(normalizeForCompare);
   const rightCompare = rightLines.map(normalizeForCompare);
@@ -1008,13 +970,6 @@ function updateHorizontalScrollbar() {
   elements.hScrollbar.classList.toggle("hidden", shouldHide);
 }
 
-function handleFileInput(side, file) {
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => setSideText(side, reader.result, file.name);
-  reader.readAsText(file);
-}
-
 function handleDrop(side, event) {
   event.preventDefault();
   event.stopPropagation();
@@ -1022,7 +977,10 @@ function handleDrop(side, event) {
 
   const files = event.dataTransfer.files;
   if (files && files.length > 0) {
-    handleFileInput(side, files[0]);
+    const file = files[0];
+    const reader = new FileReader();
+    reader.onload = () => setSideText(side, reader.result, file.name);
+    reader.readAsText(file);
     return;
   }
 
@@ -1051,6 +1009,7 @@ function setupDropZone(side) {
     dragDepth = Math.max(0, dragDepth - 1);
     if (!dragDepth) view.classList.remove("drag");
   });
+
   view.addEventListener("drop", (event) => {
     dragDepth = 0;
     view.classList.remove("drag");
@@ -1139,21 +1098,8 @@ function setupScrollSync() {
 }
 
 function setupEvents() {
-  elements.left.file.addEventListener("change", (event) => {
-    handleFileInput("left", event.target.files[0]);
-  });
-  elements.right.file.addEventListener("change", (event) => {
-    handleFileInput("right", event.target.files[0]);
-  });
   elements.leftCopyBtn.addEventListener("click", () => copySideToClipboard("left"));
   elements.rightCopyBtn.addEventListener("click", () => copySideToClipboard("right"));
-  elements.hintActions.forEach((button) => {
-    button.addEventListener("click", () => {
-      const side = button.dataset.side;
-      if (!side) return;
-      elements[side].file.click();
-    });
-  });
 
   elements.left.lang.addEventListener("change", (event) => {
     state.left.lang = event.target.value;
@@ -1183,8 +1129,6 @@ function setupEvents() {
 
   elements.swapBtn.addEventListener("click", swapSides);
   elements.clearBtn.addEventListener("click", clearAll);
-  elements.prevFileBtn.addEventListener("click", () => goToAdjacentTabWithChanges(-1));
-  elements.nextFileBtn.addEventListener("click", () => goToAdjacentTabWithChanges(1));
   elements.firstChangeBtn.addEventListener("click", () => setActiveHunk(0, { scroll: true }));
   elements.lastChangeBtn.addEventListener("click", () => setActiveHunk(diffUi.hunks.length - 1, { scroll: true }));
   elements.prevChangeBtn.addEventListener("click", () =>

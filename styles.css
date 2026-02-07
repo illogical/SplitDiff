@@ -493,7 +493,7 @@ body {
   color: var(--muted);
   font-size: 14px;
   text-align: center;
-  pointer-events: auto;
+  pointer-events: none;
   opacity: 1;
   transition: opacity 0.2s ease;
   background: rgba(15, 20, 29, 0.8);
@@ -508,6 +508,7 @@ body {
   border-radius: 999px;
   font-size: 12px;
   cursor: pointer;
+  pointer-events: auto;
 }
 
 .drop-hint.hidden {
