@@ -33,8 +33,54 @@
     <div class="tabs" id="tabs">
       <button id="newTabBtn" class="tab tab-add" aria-label="New tab">+</button>
     </div>
-    <button id="closeAllBtn" class="btn ghost small">Close All</button>
+    <button id="closeAllBtn" class="btn ghost small"><span class="btn-icon" aria-hidden="true">x</span>Close All</button>
   </nav>
+  <section class="diff-toolbar">
+    <div class="tool-left">
+      <div class="tool-group search-group">
+        <input id="searchInput" class="search-input" type="search" placeholder="Search diff" />
+        <button id="searchPrevBtn" class="btn ghost small">Prev</button>
+        <button id="searchNextBtn" class="btn ghost small">Next</button>
+        <span id="searchCount" class="muted">0/0</span>
+      </div>
+      <div class="tool-group nav-group" aria-label="Change navigation">
+        <button id="firstChangeBtn" class="icon-btn" type="button" title="First change" aria-label="First change">
+          <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M6 4v12M14 6l-4 4 4 4M10 6l-4 4 4 4" />
+          </svg>
+        </button>
+        <button id="prevChangeBtn" class="icon-btn" type="button" title="Previous change" aria-label="Previous change">
+          <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M12 6l-6 4 6 4" />
+          </svg>
+        </button>
+        <button id="nextChangeBtn" class="icon-btn" type="button" title="Next change" aria-label="Next change">
+          <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M8 6l6 4-6 4" />
+          </svg>
+        </button>
+        <button id="lastChangeBtn" class="icon-btn" type="button" title="Last change" aria-label="Last change">
+          <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M14 4v12M6 6l4 4-4 4M10 6l4 4-4 4" />
+          </svg>
+        </button>
+      </div>
+      <div class="tool-group review-group">
+        <button id="markReviewedBtn" class="btn ghost small">Mark Reviewed</button>
+        <span id="hunkStatus" class="muted">No changes</span>
+      </div>
+    </div>
+    <div class="tool-right">
+      <label class="toggle">
+        <input id="whitespaceToggle" type="checkbox" />
+        <span>Ignore Whitespace</span>
+      </label>
+      <label class="toggle">
+        <input id="collapseToggle" type="checkbox" />
+        <span>Collapse Unchanged</span>
+      </label>
+    </div>
+  </section>
 
   <main class="diff-shell">
     <section class="pane" id="left-pane">
@@ -45,6 +91,7 @@
             <input id="left-file" type="file" />
             Load file
           </label>
+          <button id="left-copy" class="inline-btn" type="button">Copy</button>
           <select id="left-lang" class="select">
             <option value="auto">Auto</option>
             <option value="bash">Bash</option>
@@ -63,6 +110,7 @@
         <div class="drop-hint" id="left-hint">
           <div>Drop a file here</div>
           <div class="muted">or paste text with Ctrl/Cmd + V</div>
+          <button class="hint-action" type="button" data-side="left">Choose file</button>
         </div>
         <div class="lines" id="left-lines"></div>
       </div>
@@ -78,6 +126,7 @@
             <input id="right-file" type="file" />
             Load file
           </label>
+          <button id="right-copy" class="inline-btn" type="button">Copy</button>
           <select id="right-lang" class="select">
             <option value="auto">Auto</option>
             <option value="bash">Bash</option>
@@ -96,6 +145,7 @@
         <div class="drop-hint" id="right-hint">
           <div>Drop a file here</div>
           <div class="muted">or paste text with Ctrl/Cmd + V</div>
+          <button class="hint-action" type="button" data-side="right">Choose file</button>
         </div>
         <div class="lines" id="right-lines"></div>
       </div>

@@ -7,6 +7,21 @@ const state = {
   right: { text: "", name: "Right", lang: "auto", detectedLang: "plaintext" },
 };
 
+const diffUi = {
+  ignoreWhitespace: false,
+  collapseUnchanged: false,
+  hunks: [],
+  hunkByRaw: [],
+  activeHunkIndex: -1,
+  activeHunkId: null,
+  reviewed: new Set(),
+  expandedBlocks: new Set(),
+  search: { query: "", rows: [], activeIndex: -1 },
+  display: { left: [], right: [] },
+  displayIndexByRaw: [],
+  summaryText: "",
+};
+
 let tabs = [];
 let activeTabId = null;
 
@@ -31,6 +46,20 @@ const elements = {
   syncToggle: document.getElementById("syncToggle"),
   swapBtn: document.getElementById("swapBtn"),
   clearBtn: document.getElementById("clearBtn"),
+  prevFileBtn: document.getElementById("prevFileBtn"),
+  nextFileBtn: document.getElementById("nextFileBtn"),
+  firstChangeBtn: document.getElementById("firstChangeBtn"),
+  prevChangeBtn: document.getElementById("prevChangeBtn"),
+  nextChangeBtn: document.getElementById("nextChangeBtn"),
+  lastChangeBtn: document.getElementById("lastChangeBtn"),
+  whitespaceToggle: document.getElementById("whitespaceToggle"),
+  collapseToggle: document.getElementById("collapseToggle"),
+  searchInput: document.getElementById("searchInput"),
+  searchPrevBtn: document.getElementById("searchPrevBtn"),
+  searchNextBtn: document.getElementById("searchNextBtn"),
+  searchCount: document.getElementById("searchCount"),
+  markReviewedBtn: document.getElementById("markReviewedBtn"),
+  hunkStatus: document.getElementById("hunkStatus"),
   summary: document.getElementById("summary"),
   hScrollbar: document.getElementById("h-scrollbar"),
   hScrollbarInner: document.getElementById("h-scrollbar-inner"),
@@ -41,6 +70,9 @@ const elements = {
   modalClose: document.getElementById("modal-close"),
   modalCancel: document.getElementById("modal-cancel"),
   modalConfirm: document.getElementById("modal-confirm"),
+  leftCopyBtn: document.getElementById("left-copy"),
+  rightCopyBtn: document.getElementById("right-copy"),
+  hintActions: document.querySelectorAll(".hint-action"),
 };
 
 const extensionMap = {
@@ -62,8 +94,16 @@ const extensionMap = {
   txt: "plaintext",
 };
 
+const COLLAPSE_CONTEXT = 2;
+const COLLAPSE_MIN = COLLAPSE_CONTEXT * 2 + 4;
+
 function normalize(text) {
   return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+function normalizeForCompare(line) {
+  if (!diffUi.ignoreWhitespace) return line;
+  return line.replace(/\s+/g, "");
 }
 
 function escapeHtml(text) {
@@ -109,6 +149,7 @@ function setSideText(side, text, name) {
   const extLang = detectLangByExtension(name);
   state[side].detectedLang = extLang !== "plaintext" ? extLang : detectLangByContent(normalized);
 
+  diffUi.expandedBlocks.clear();
   updateHints();
   updateDiff();
   persistActiveTab();
@@ -206,6 +247,7 @@ function persistActiveTab() {
   saveTabContent(activeTabId, {
     left: { text: state.left.text, name: state.left.name, lang: state.left.lang },
     right: { text: state.right.text, name: state.right.name, lang: state.right.lang },
+    reviewed: Array.from(diffUi.reviewed),
   });
   renderTabs();
 }
@@ -225,6 +267,7 @@ function createTab() {
   saveTabContent(id, {
     left: { text: "", name: "Left", lang: "auto" },
     right: { text: "", name: "Right", lang: "auto" },
+    reviewed: [],
   });
   return id;
 }
@@ -244,6 +287,10 @@ function applyTabContent(tabContent) {
 
   state.left = buildSideState(leftData, "Left");
   state.right = buildSideState(rightData, "Right");
+  diffUi.reviewed = new Set(tabContent?.reviewed || []);
+  diffUi.expandedBlocks.clear();
+  diffUi.activeHunkIndex = -1;
+  diffUi.activeHunkId = null;
 
   elements.left.lang.value = state.left.lang;
   elements.right.lang.value = state.right.lang;
@@ -362,14 +409,14 @@ function initTabs() {
   setActiveTab(activeId, { skipSave: true });
 }
 
-function lcsDiff(a, b) {
-  const n = a.length;
-  const m = b.length;
+function lcsDiff(aRaw, bRaw, aCmp = aRaw, bCmp = bRaw) {
+  const n = aCmp.length;
+  const m = bCmp.length;
   const dp = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
 
   for (let i = 1; i <= n; i++) {
     for (let j = 1; j <= m; j++) {
-      if (a[i - 1] === b[j - 1]) {
+      if (aCmp[i - 1] === bCmp[j - 1]) {
         dp[i][j] = dp[i - 1][j - 1] + 1;
       } else {
         dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
@@ -381,24 +428,24 @@ function lcsDiff(a, b) {
   let i = n;
   let j = m;
   while (i > 0 && j > 0) {
-    if (a[i - 1] === b[j - 1]) {
-      ops.push({ type: "equal", line: a[i - 1] });
+    if (aCmp[i - 1] === bCmp[j - 1]) {
+      ops.push({ type: "equal", left: aRaw[i - 1], right: bRaw[j - 1] });
       i--;
       j--;
     } else if (dp[i - 1][j] >= dp[i][j - 1]) {
-      ops.push({ type: "delete", line: a[i - 1] });
+      ops.push({ type: "delete", left: aRaw[i - 1] });
       i--;
     } else {
-      ops.push({ type: "insert", line: b[j - 1] });
+      ops.push({ type: "insert", right: bRaw[j - 1] });
       j--;
     }
   }
   while (i > 0) {
-    ops.push({ type: "delete", line: a[i - 1] });
+    ops.push({ type: "delete", left: aRaw[i - 1] });
     i--;
   }
   while (j > 0) {
-    ops.push({ type: "insert", line: b[j - 1] });
+    ops.push({ type: "insert", right: bRaw[j - 1] });
     j--;
   }
 
@@ -414,8 +461,8 @@ function alignOps(ops) {
 
   while (i < ops.length) {
     if (ops[i].type === "equal") {
-      left.push({ type: "equal", text: ops[i].line, ln: ++leftLine });
-      right.push({ type: "equal", text: ops[i].line, ln: ++rightLine });
+      left.push({ type: "equal", text: ops[i].left, ln: ++leftLine });
+      right.push({ type: "equal", text: ops[i].right, ln: ++rightLine });
       i++;
       continue;
     }
@@ -424,9 +471,9 @@ function alignOps(ops) {
     const ins = [];
     while (i < ops.length && ops[i].type !== "equal") {
       if (ops[i].type === "delete") {
-        dels.push(ops[i].line);
+        dels.push(ops[i].left);
       } else {
-        ins.push(ops[i].line);
+        ins.push(ops[i].right);
       }
       i++;
     }
@@ -450,14 +497,149 @@ function alignOps(ops) {
   return { left, right };
 }
 
+function firstLineNumber(lines, start, end) {
+  for (let i = start; i <= end; i++) {
+    if (lines[i].ln !== null && lines[i].ln !== undefined) return lines[i].ln;
+  }
+  return null;
+}
+
+function buildHunks(aligned) {
+  const hunks = [];
+  const left = aligned.left;
+  const right = aligned.right;
+  let i = 0;
+
+  while (i < left.length) {
+    const isEqual = left[i].type === "equal" && right[i].type === "equal";
+    if (isEqual) {
+      i++;
+      continue;
+    }
+
+    const start = i;
+    while (i < left.length) {
+      const equal = left[i].type === "equal" && right[i].type === "equal";
+      if (equal) break;
+      i++;
+    }
+    const end = i - 1;
+    const leftStartLine = firstLineNumber(left, start, end);
+    const rightStartLine = firstLineNumber(right, start, end);
+    const id = `h-${leftStartLine ?? "n"}-${rightStartLine ?? "n"}-${start}-${end}`;
+
+    hunks.push({ id, start, end, leftStartLine, rightStartLine });
+  }
+
+  return hunks;
+}
+
+function buildHunkMap(length, hunks) {
+  const map = new Array(length).fill(null);
+  hunks.forEach((hunk) => {
+    for (let i = hunk.start; i <= hunk.end; i++) {
+      map[i] = hunk.id;
+    }
+  });
+  return map;
+}
+
+function buildDisplay(aligned) {
+  const leftDisplay = [];
+  const rightDisplay = [];
+  const indexMap = new Array(aligned.left.length).fill(null);
+
+  let i = 0;
+  while (i < aligned.left.length) {
+    const isEqual = aligned.left[i].type === "equal" && aligned.right[i].type === "equal";
+    if (!diffUi.collapseUnchanged || !isEqual) {
+      const leftLine = { ...aligned.left[i], rawIndex: i };
+      const rightLine = { ...aligned.right[i], rawIndex: i };
+      indexMap[i] = leftDisplay.length;
+      leftDisplay.push(leftLine);
+      rightDisplay.push(rightLine);
+      i++;
+      continue;
+    }
+
+    const start = i;
+    while (i < aligned.left.length) {
+      const equal = aligned.left[i].type === "equal" && aligned.right[i].type === "equal";
+      if (!equal) break;
+      i++;
+    }
+    const end = i - 1;
+    const length = end - start + 1;
+    const blockId = `block-${start}-${end}`;
+
+    if (length <= COLLAPSE_MIN || diffUi.expandedBlocks.has(blockId)) {
+      for (let k = start; k <= end; k++) {
+        const leftLine = { ...aligned.left[k], rawIndex: k };
+        const rightLine = { ...aligned.right[k], rawIndex: k };
+        indexMap[k] = leftDisplay.length;
+        leftDisplay.push(leftLine);
+        rightDisplay.push(rightLine);
+      }
+      continue;
+    }
+
+    const headEnd = start + COLLAPSE_CONTEXT - 1;
+    const tailStart = end - COLLAPSE_CONTEXT + 1;
+    for (let k = start; k <= headEnd; k++) {
+      const leftLine = { ...aligned.left[k], rawIndex: k };
+      const rightLine = { ...aligned.right[k], rawIndex: k };
+      indexMap[k] = leftDisplay.length;
+      leftDisplay.push(leftLine);
+      rightDisplay.push(rightLine);
+    }
+
+    const hiddenCount = tailStart - headEnd - 1;
+    const message = `... ${hiddenCount} unchanged line${hiddenCount === 1 ? "" : "s"} (click to expand)`;
+    const collapsedLine = {
+      type: "collapsed",
+      text: message,
+      ln: "",
+      rawIndex: headEnd + 1,
+      blockId,
+      rawStart: headEnd + 1,
+      rawEnd: tailStart - 1,
+    };
+    const collapsedIndex = leftDisplay.length;
+    leftDisplay.push(collapsedLine);
+    rightDisplay.push({ ...collapsedLine });
+    for (let k = headEnd + 1; k <= tailStart - 1; k++) {
+      indexMap[k] = collapsedIndex;
+    }
+
+    for (let k = tailStart; k <= end; k++) {
+      const leftLine = { ...aligned.left[k], rawIndex: k };
+      const rightLine = { ...aligned.right[k], rawIndex: k };
+      indexMap[k] = leftDisplay.length;
+      leftDisplay.push(leftLine);
+      rightDisplay.push(rightLine);
+    }
+  }
+
+  return { left: leftDisplay, right: rightDisplay, indexMap };
+}
+
 function render(side, lines, lang) {
   const container = elements[side].lines;
   container.innerHTML = "";
   const fragment = document.createDocumentFragment();
 
-  lines.forEach((line) => {
+  lines.forEach((line, index) => {
     const row = document.createElement("div");
     row.className = `line ${line.type}`;
+    row.dataset.index = index;
+    if (line.rawIndex !== undefined && line.rawIndex !== null) {
+      row.dataset.rawIndex = line.rawIndex;
+    }
+    if (line.blockId) {
+      row.dataset.blockId = line.blockId;
+      row.dataset.rawStart = line.rawStart;
+      row.dataset.rawEnd = line.rawEnd;
+    }
 
     const ln = document.createElement("div");
     ln.className = "ln";
@@ -465,7 +647,11 @@ function render(side, lines, lang) {
 
     const code = document.createElement("div");
     code.className = "code";
-    code.innerHTML = highlightLine(line.text, lang);
+    if (line.type === "collapsed") {
+      code.textContent = line.text;
+    } else {
+      code.innerHTML = highlightLine(line.text, lang);
+    }
 
     row.append(ln, code);
     fragment.append(row);
@@ -474,32 +660,337 @@ function render(side, lines, lang) {
   container.append(fragment);
 }
 
+let summaryTimeout = null;
+
+function flashSummary(message, duration = 2000) {
+  if (!elements.summary) return;
+  window.clearTimeout(summaryTimeout);
+  elements.summary.textContent = message;
+  summaryTimeout = window.setTimeout(() => {
+    elements.summary.textContent = diffUi.summaryText || elements.summary.textContent;
+  }, duration);
+}
+
+function updateHunkStatus() {
+  if (!elements.hunkStatus || !elements.markReviewedBtn) return;
+  if (!diffUi.hunks.length) {
+    elements.hunkStatus.textContent = "No changes";
+    elements.markReviewedBtn.textContent = "Mark Reviewed";
+    elements.markReviewedBtn.disabled = true;
+    return;
+  }
+
+  const index = diffUi.activeHunkIndex < 0 ? 0 : diffUi.activeHunkIndex;
+  const hunk = diffUi.hunks[index];
+  const reviewed = diffUi.reviewed.has(hunk.id);
+  elements.hunkStatus.textContent = `Hunk ${index + 1}/${diffUi.hunks.length} · ${reviewed ? "Reviewed" : "Unreviewed"}`;
+  elements.markReviewedBtn.textContent = reviewed ? "Mark Unreviewed" : "Mark Reviewed";
+  elements.markReviewedBtn.disabled = false;
+}
+
+function updateSearchUI() {
+  if (!elements.searchCount) return;
+  const total = diffUi.search.rows.length;
+  const current = total ? diffUi.search.activeIndex + 1 : 0;
+  elements.searchCount.textContent = `${current}/${total}`;
+}
+
+function updateSearchMatches({ keepActive = false } = {}) {
+  const query = diffUi.search.query.trim().toLowerCase();
+  const rows = [];
+
+  if (query) {
+    for (let i = 0; i < diffUi.display.left.length; i++) {
+      const leftLine = diffUi.display.left[i];
+      const rightLine = diffUi.display.right[i];
+      if (leftLine?.type === "collapsed" || rightLine?.type === "collapsed") continue;
+      const leftMatch = leftLine?.text?.toLowerCase().includes(query);
+      const rightMatch = rightLine?.text?.toLowerCase().includes(query);
+      if (leftMatch || rightMatch) rows.push(i);
+    }
+  }
+
+  diffUi.search.rows = rows;
+  if (!keepActive) {
+    diffUi.search.activeIndex = rows.length ? 0 : -1;
+  } else if (diffUi.search.activeIndex >= rows.length) {
+    diffUi.search.activeIndex = rows.length ? 0 : -1;
+  }
+  updateSearchUI();
+}
+
+function clearSearchMarks(container) {
+  if (!container) return;
+  const marks = container.querySelectorAll("mark.search-mark");
+  marks.forEach((mark) => {
+    const textNode = document.createTextNode(mark.textContent);
+    mark.replaceWith(textNode);
+  });
+  container.normalize();
+}
+
+function highlightMatchesInElement(element, queryLower) {
+  if (!element || !queryLower) return;
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+
+  nodes.forEach((node) => {
+    const text = node.nodeValue;
+    if (!text) return;
+    const lower = text.toLowerCase();
+    let idx = lower.indexOf(queryLower);
+    if (idx === -1) return;
+
+    const frag = document.createDocumentFragment();
+    let last = 0;
+    while (idx !== -1) {
+      if (idx > last) {
+        frag.append(document.createTextNode(text.slice(last, idx)));
+      }
+      const mark = document.createElement("mark");
+      mark.className = "search-mark";
+      mark.textContent = text.slice(idx, idx + queryLower.length);
+      frag.append(mark);
+      last = idx + queryLower.length;
+      idx = lower.indexOf(queryLower, last);
+    }
+    if (last < text.length) {
+      frag.append(document.createTextNode(text.slice(last)));
+    }
+    node.parentNode.replaceChild(frag, node);
+  });
+}
+
+function updateSearchHighlights() {
+  const query = diffUi.search.query.trim();
+  clearSearchMarks(elements.left.lines);
+  clearSearchMarks(elements.right.lines);
+  if (!query) return;
+  const queryLower = query.toLowerCase();
+
+  diffUi.search.rows.forEach((index) => {
+    const leftRow = elements.left.lines.querySelector(`.line[data-index="${index}"]`);
+    const rightRow = elements.right.lines.querySelector(`.line[data-index="${index}"]`);
+    if (leftRow && !leftRow.classList.contains("collapsed")) {
+      highlightMatchesInElement(leftRow.querySelector(".code"), queryLower);
+    }
+    if (rightRow && !rightRow.classList.contains("collapsed")) {
+      highlightMatchesInElement(rightRow.querySelector(".code"), queryLower);
+    }
+  });
+}
+
+function applyDecorations() {
+  const searchRows = new Set(diffUi.search.rows);
+  const activeSearchRow = diffUi.search.rows[diffUi.search.activeIndex];
+  const activeHunkId = diffUi.activeHunkId;
+
+  ["left", "right"].forEach((side) => {
+    const rows = elements[side].lines.children;
+    Array.from(rows).forEach((row) => {
+      const index = Number(row.dataset.index);
+      const rawIndex = Number(row.dataset.rawIndex);
+      const hunkId = Number.isNaN(rawIndex) ? null : diffUi.hunkByRaw[rawIndex];
+
+      row.classList.toggle("search-hit", searchRows.has(index));
+      row.classList.toggle("search-active", index === activeSearchRow);
+      row.classList.toggle("hunk-active", hunkId && hunkId === activeHunkId);
+      row.classList.toggle("hunk-reviewed", hunkId && diffUi.reviewed.has(hunkId));
+    });
+  });
+}
+
+function setActiveHunk(index, { scroll = false } = {}) {
+  if (!diffUi.hunks.length) return;
+  const clamped = Math.max(0, Math.min(index, diffUi.hunks.length - 1));
+  diffUi.activeHunkIndex = clamped;
+  diffUi.activeHunkId = diffUi.hunks[clamped].id;
+  updateHunkStatus();
+  applyDecorations();
+  if (scroll) scrollToHunk(clamped);
+}
+
+function scrollToRowIndex(rowIndex) {
+  if (rowIndex === null || rowIndex === undefined) return;
+  const leftRow = elements.left.lines.querySelector(`.line[data-index="${rowIndex}"]`);
+  const rightRow = elements.right.lines.querySelector(`.line[data-index="${rowIndex}"]`);
+  if (leftRow) leftRow.scrollIntoView({ block: "center" });
+  if (!elements.syncToggle.checked && rightRow) {
+    rightRow.scrollIntoView({ block: "center" });
+  }
+}
+
+function scrollToHunk(index) {
+  const hunk = diffUi.hunks[index];
+  if (!hunk) return;
+  let targetIndex = null;
+  for (let i = hunk.start; i <= hunk.end; i++) {
+    const displayIndex = diffUi.displayIndexByRaw?.[i];
+    if (displayIndex !== null && displayIndex !== undefined) {
+      targetIndex = displayIndex;
+      break;
+    }
+  }
+  scrollToRowIndex(targetIndex);
+}
+
+async function copyToClipboard(text) {
+  if (!text) return false;
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return true;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const success = document.execCommand("copy");
+  textarea.remove();
+  return success;
+}
+
+async function copySideToClipboard(side) {
+  const text = state[side].text;
+  if (!text) {
+    flashSummary(`Nothing to copy on ${side === "left" ? "left" : "right"}.`);
+    return;
+  }
+  try {
+    await copyToClipboard(text);
+    flashSummary(`${state[side].name || side} copied to clipboard.`);
+  } catch {
+    flashSummary("Copy failed.");
+  }
+}
+
+function hasChangesFromText(leftText, rightText) {
+  if (!leftText && !rightText) return false;
+  const leftLines = (leftText || "").split("\n").map(normalizeForCompare);
+  const rightLines = (rightText || "").split("\n").map(normalizeForCompare);
+  if (leftLines.length !== rightLines.length) return true;
+  for (let i = 0; i < leftLines.length; i++) {
+    if (leftLines[i] !== rightLines[i]) return true;
+  }
+  return false;
+}
+
+function tabHasChanges(tab) {
+  const content = loadTabContent(tab.id);
+  if (!content) return false;
+  return hasChangesFromText(content.left?.text || "", content.right?.text || "");
+}
+
+function goToAdjacentTabWithChanges(direction) {
+  if (!tabs.length) return;
+  persistActiveTab();
+  const startIndex = tabs.findIndex((tab) => tab.id === activeTabId);
+  const total = tabs.length;
+  for (let step = 1; step <= total; step++) {
+    const index = (startIndex + direction * step + total) % total;
+    const tab = tabs[index];
+    if (tabHasChanges(tab)) {
+      setActiveTab(tab.id);
+      return;
+    }
+  }
+  flashSummary("No other tabs with changes.");
+}
+
+function handleLineClick(side, event) {
+  const row = event.target.closest(".line");
+  if (!row) return;
+
+  if (row.classList.contains("collapsed") && row.dataset.blockId) {
+    diffUi.expandedBlocks.add(row.dataset.blockId);
+    updateDiff();
+    return;
+  }
+
+  const index = Number(row.dataset.index);
+  if (Number.isNaN(index)) return;
+  const otherSide = side === "left" ? "right" : "left";
+  const otherRow = elements[otherSide].lines.querySelector(`.line[data-index="${index}"]`);
+  if (otherRow) {
+    otherRow.scrollIntoView({ block: "center" });
+  }
+
+  const rawIndex = Number(row.dataset.rawIndex);
+  if (!Number.isNaN(rawIndex)) {
+    const hunkId = diffUi.hunkByRaw[rawIndex];
+    if (hunkId) {
+      const hunkIndex = diffUi.hunks.findIndex((hunk) => hunk.id === hunkId);
+      if (hunkIndex !== -1) {
+        setActiveHunk(hunkIndex);
+      }
+    }
+  }
+}
+
 function updateDiff() {
   const leftLines = state.left.text ? state.left.text.split("\n") : [];
   const rightLines = state.right.text ? state.right.text.split("\n") : [];
 
   if (!leftLines.length && !rightLines.length) {
     elements.summary.textContent = "Drop files on either side to get started.";
+    diffUi.summaryText = elements.summary.textContent;
     elements.left.lines.innerHTML = "";
     elements.right.lines.innerHTML = "";
-    updateHorizontalScrollbar();
-    return;
-  }
+    diffUi.display = { left: [], right: [] };
+    diffUi.displayIndexByRaw = [];
+    diffUi.hunks = [];
+    diffUi.hunkByRaw = [];
+    diffUi.activeHunkIndex = -1;
+    diffUi.activeHunkId = null;
+    updateHunkStatus();
+  updateSearchMatches({ keepActive: false });
+  applyDecorations();
+  updateSearchHighlights();
+  updateHorizontalScrollbar();
+  return;
+}
 
-  const ops = lcsDiff(leftLines, rightLines);
+  const leftCompare = leftLines.map(normalizeForCompare);
+  const rightCompare = rightLines.map(normalizeForCompare);
+  const ops = lcsDiff(leftLines, rightLines, leftCompare, rightCompare);
   const aligned = alignOps(ops);
+  const display = buildDisplay(aligned);
+  diffUi.display = { left: display.left, right: display.right };
+  diffUi.displayIndexByRaw = display.indexMap;
+  diffUi.hunks = buildHunks(aligned);
+  diffUi.hunkByRaw = buildHunkMap(aligned.left.length, diffUi.hunks);
+
+  const hunkIds = new Set(diffUi.hunks.map((hunk) => hunk.id));
+  diffUi.reviewed = new Set(Array.from(diffUi.reviewed).filter((id) => hunkIds.has(id)));
+  if (!diffUi.hunks.length) {
+    diffUi.activeHunkIndex = -1;
+    diffUi.activeHunkId = null;
+  } else {
+    const desiredIndex = diffUi.activeHunkId
+      ? diffUi.hunks.findIndex((hunk) => hunk.id === diffUi.activeHunkId)
+      : diffUi.activeHunkIndex;
+    diffUi.activeHunkIndex = desiredIndex >= 0 ? desiredIndex : 0;
+    diffUi.activeHunkId = diffUi.hunks[diffUi.activeHunkIndex]?.id || null;
+  }
 
   const leftLang = state.left.lang === "auto" ? state.left.detectedLang : state.left.lang;
   const rightLang = state.right.lang === "auto" ? state.right.detectedLang : state.right.lang;
 
-  render("left", aligned.left, leftLang);
-  render("right", aligned.right, rightLang);
+  render("left", display.left, leftLang);
+  render("right", display.right, rightLang);
 
   const inserts = aligned.right.filter((line) => line.type === "insert").length;
   const deletes = aligned.left.filter((line) => line.type === "delete").length;
   const total = Math.max(leftLines.length, rightLines.length);
 
-  elements.summary.textContent = `Lines: ${total} · +${inserts} added · -${deletes} removed`;
+  diffUi.summaryText = `Lines: ${total} · +${inserts} added · -${deletes} removed`;
+  elements.summary.textContent = diffUi.summaryText;
+  updateHunkStatus();
+  updateSearchMatches({ keepActive: true });
+  applyDecorations();
+  updateSearchHighlights();
   updateHorizontalScrollbar();
 }
 
@@ -565,6 +1056,7 @@ function swapSides() {
   const right = { ...state.right };
   state.left = right;
   state.right = left;
+  diffUi.expandedBlocks.clear();
 
   elements.left.lang.value = state.left.lang;
   elements.right.lang.value = state.right.lang;
@@ -577,6 +1069,10 @@ function swapSides() {
 function clearAll() {
   state.left = { text: "", name: "Left", lang: elements.left.lang.value, detectedLang: "plaintext" };
   state.right = { text: "", name: "Right", lang: elements.right.lang.value, detectedLang: "plaintext" };
+  diffUi.reviewed.clear();
+  diffUi.expandedBlocks.clear();
+  diffUi.activeHunkIndex = -1;
+  diffUi.activeHunkId = null;
   updateHints();
   updateDiff();
   persistActiveTab();
@@ -635,6 +1131,15 @@ function setupEvents() {
   elements.right.file.addEventListener("change", (event) => {
     handleFileInput("right", event.target.files[0]);
   });
+  elements.leftCopyBtn.addEventListener("click", () => copySideToClipboard("left"));
+  elements.rightCopyBtn.addEventListener("click", () => copySideToClipboard("right"));
+  elements.hintActions.forEach((button) => {
+    button.addEventListener("click", () => {
+      const side = button.dataset.side;
+      if (!side) return;
+      elements[side].file.click();
+    });
+  });
 
   elements.left.lang.addEventListener("change", (event) => {
     state.left.lang = event.target.value;
@@ -652,9 +1157,64 @@ function setupEvents() {
     elements.right.view.classList.toggle("wrap", event.target.checked);
     updateHorizontalScrollbar();
   });
+  elements.whitespaceToggle.addEventListener("change", (event) => {
+    diffUi.ignoreWhitespace = event.target.checked;
+    updateDiff();
+  });
+  elements.collapseToggle.addEventListener("change", (event) => {
+    diffUi.collapseUnchanged = event.target.checked;
+    if (!diffUi.collapseUnchanged) diffUi.expandedBlocks.clear();
+    updateDiff();
+  });
 
   elements.swapBtn.addEventListener("click", swapSides);
   elements.clearBtn.addEventListener("click", clearAll);
+  elements.prevFileBtn.addEventListener("click", () => goToAdjacentTabWithChanges(-1));
+  elements.nextFileBtn.addEventListener("click", () => goToAdjacentTabWithChanges(1));
+  elements.firstChangeBtn.addEventListener("click", () => setActiveHunk(0, { scroll: true }));
+  elements.lastChangeBtn.addEventListener("click", () => setActiveHunk(diffUi.hunks.length - 1, { scroll: true }));
+  elements.prevChangeBtn.addEventListener("click", () =>
+    setActiveHunk(diffUi.activeHunkIndex - 1, { scroll: true })
+  );
+  elements.nextChangeBtn.addEventListener("click", () =>
+    setActiveHunk(diffUi.activeHunkIndex + 1, { scroll: true })
+  );
+  elements.markReviewedBtn.addEventListener("click", () => {
+    const hunk = diffUi.hunks[diffUi.activeHunkIndex];
+    if (!hunk) return;
+    if (diffUi.reviewed.has(hunk.id)) {
+      diffUi.reviewed.delete(hunk.id);
+    } else {
+      diffUi.reviewed.add(hunk.id);
+    }
+    persistActiveTab();
+    updateHunkStatus();
+    applyDecorations();
+  });
+  elements.searchInput.addEventListener("input", (event) => {
+    diffUi.search.query = event.target.value;
+    updateSearchMatches({ keepActive: false });
+    applyDecorations();
+    updateSearchHighlights();
+  });
+  elements.searchPrevBtn.addEventListener("click", () => {
+    if (!diffUi.search.rows.length) return;
+    diffUi.search.activeIndex =
+      (diffUi.search.activeIndex - 1 + diffUi.search.rows.length) % diffUi.search.rows.length;
+    updateSearchUI();
+    applyDecorations();
+    updateSearchHighlights();
+    scrollToRowIndex(diffUi.search.rows[diffUi.search.activeIndex]);
+  });
+  elements.searchNextBtn.addEventListener("click", () => {
+    if (!diffUi.search.rows.length) return;
+    diffUi.search.activeIndex =
+      (diffUi.search.activeIndex + 1) % diffUi.search.rows.length;
+    updateSearchUI();
+    applyDecorations();
+    updateSearchHighlights();
+    scrollToRowIndex(diffUi.search.rows[diffUi.search.activeIndex]);
+  });
   elements.newTabBtn.addEventListener("click", () => {
     persistActiveTab();
     const id = createTab();
@@ -678,6 +1238,8 @@ function setupEvents() {
 
   setupDropZone("left");
   setupDropZone("right");
+  elements.left.lines.addEventListener("click", (event) => handleLineClick("left", event));
+  elements.right.lines.addEventListener("click", (event) => handleLineClick("right", event));
   setupScrollSync();
   window.addEventListener("resize", updateHorizontalScrollbar);
   initTabs();
