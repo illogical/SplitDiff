@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Split Diff — JetBrains-Inspired</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="title">Split Diff</div>
+      <div class="subtitle">Drag and drop files, paste text, or pick a language. Scroll sync feels like an IDE.</div>
+    </div>
+    <div class="toolbar">
+      <button id="swapBtn" class="btn">Swap</button>
+      <button id="clearBtn" class="btn ghost">Clear</button>
+      <label class="toggle">
+        <input id="wrapToggle" type="checkbox" />
+        <span>Wrap</span>
+      </label>
+      <label class="toggle">
+        <input id="syncToggle" type="checkbox" checked />
+        <span>Sync Scroll</span>
+      </label>
+    </div>
+  </header>
+  <nav class="tabs-bar">
+    <div class="tabs" id="tabs">
+      <button id="newTabBtn" class="tab tab-add" aria-label="New tab">+</button>
+    </div>
+    <button id="closeAllBtn" class="btn ghost small">Close All</button>
+  </nav>
+
+  <main class="diff-shell">
+    <section class="pane" id="left-pane">
+      <div class="pane-header">
+        <div class="pane-title" id="left-name">Left</div>
+        <div class="pane-controls">
+          <label class="file-btn">
+            <input id="left-file" type="file" />
+            Load file
+          </label>
+          <select id="left-lang" class="select">
+            <option value="auto">Auto</option>
+            <option value="bash">Bash</option>
+            <option value="typescript">TypeScript</option>
+            <option value="javascript">JavaScript</option>
+            <option value="xml">HTML</option>
+            <option value="csharp">C#</option>
+            <option value="python">Python</option>
+            <option value="powershell">PowerShell</option>
+            <option value="markdown">Markdown</option>
+            <option value="plaintext">Plain Text</option>
+          </select>
+        </div>
+      </div>
+      <div class="code-view" id="left-view" tabindex="0">
+        <div class="drop-hint" id="left-hint">
+          <div>Drop a file here</div>
+          <div class="muted">or paste text with Ctrl/Cmd + V</div>
+        </div>
+        <div class="lines" id="left-lines"></div>
+      </div>
+    </section>
+
+    <div class="divider" aria-hidden="true"></div>
+
+    <section class="pane" id="right-pane">
+      <div class="pane-header">
+        <div class="pane-title" id="right-name">Right</div>
+        <div class="pane-controls">
+          <label class="file-btn">
+            <input id="right-file" type="file" />
+            Load file
+          </label>
+          <select id="right-lang" class="select">
+            <option value="auto">Auto</option>
+            <option value="bash">Bash</option>
+            <option value="typescript">TypeScript</option>
+            <option value="javascript">JavaScript</option>
+            <option value="xml">HTML</option>
+            <option value="csharp">C#</option>
+            <option value="python">Python</option>
+            <option value="powershell">PowerShell</option>
+            <option value="markdown">Markdown</option>
+            <option value="plaintext">Plain Text</option>
+          </select>
+        </div>
+      </div>
+      <div class="code-view" id="right-view" tabindex="0">
+        <div class="drop-hint" id="right-hint">
+          <div>Drop a file here</div>
+          <div class="muted">or paste text with Ctrl/Cmd + V</div>
+        </div>
+        <div class="lines" id="right-lines"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="status">
+    <div id="summary">Drop files on either side to get started.</div>
+  </footer>
+  <div class="h-scrollbar" id="h-scrollbar" aria-hidden="true">
+    <div class="h-scrollbar-inner" id="h-scrollbar-inner"></div>
+  </div>
+  <div class="modal-backdrop hidden" id="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modal-title">Close all tabs?</h3>
+        <button class="modal-close" id="modal-close" aria-label="Close">x</button>
+      </div>
+      <div class="modal-body">
+        This will clear all saved diffs and leave you with a single empty tab.
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="modal-cancel">Cancel</button>
+        <button class="btn danger" id="modal-confirm">Close All</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/markdown.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
