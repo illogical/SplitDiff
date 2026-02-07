@@ -38,7 +38,13 @@
   <section class="diff-toolbar">
     <div class="tool-left">
       <div class="tool-group search-group">
-        <input id="searchInput" class="search-input" type="search" placeholder="Search diff" />
+        <div class="search-field">
+          <svg class="icon search-icon" viewBox="0 0 20 20" aria-hidden="true">
+            <circle cx="9" cy="9" r="5.5" />
+            <path d="M13 13l4 4" />
+          </svg>
+          <input id="searchInput" class="search-input" type="search" placeholder="Search diff" />
+        </div>
         <button id="searchPrevBtn" class="btn ghost small">Prev</button>
         <button id="searchNextBtn" class="btn ghost small">Next</button>
         <span id="searchCount" class="muted">0/0</span>

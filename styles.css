@@ -201,14 +201,32 @@ body {
   padding: 4px 6px;
 }
 
+.search-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 4px;
+}
+
+.search-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .search-input {
   background: transparent;
   border: none;
   color: var(--text);
-  padding: 6px 8px;
+  padding: 6px 4px;
   font-size: 12px;
   outline: none;
-  min-width: 140px;
+  min-width: 150px;
 }
 
 .inline-btn {
@@ -500,6 +518,14 @@ body {
 .code-view.drag {
   outline: 2px dashed var(--accent);
   outline-offset: -6px;
+}
+
+.code-view.drag::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(97, 218, 251, 0.08);
+  pointer-events: none;
 }
 
 .status {

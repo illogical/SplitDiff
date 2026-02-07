@@ -1034,14 +1034,28 @@ function handleDrop(side, event) {
 
 function setupDropZone(side) {
   const view = elements[side].view;
+  let dragDepth = 0;
+
+  view.addEventListener("dragenter", (event) => {
+    event.preventDefault();
+    dragDepth += 1;
+    view.classList.add("drag");
+  });
 
   view.addEventListener("dragover", (event) => {
     event.preventDefault();
     view.classList.add("drag");
   });
 
-  view.addEventListener("dragleave", () => view.classList.remove("drag"));
-  view.addEventListener("drop", (event) => handleDrop(side, event));
+  view.addEventListener("dragleave", () => {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) view.classList.remove("drag");
+  });
+  view.addEventListener("drop", (event) => {
+    dragDepth = 0;
+    view.classList.remove("drag");
+    handleDrop(side, event);
+  });
 
   view.addEventListener("paste", (event) => {
     const text = event.clipboardData?.getData("text/plain");
@@ -1233,6 +1247,14 @@ function setupEvents() {
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !elements.modalBackdrop.classList.contains("hidden")) {
       closeModal();
+    }
+  });
+  window.addEventListener("dragover", (event) => {
+    event.preventDefault();
+  });
+  window.addEventListener("drop", (event) => {
+    if (!event.target.closest(".code-view")) {
+      event.preventDefault();
     }
   });
 
