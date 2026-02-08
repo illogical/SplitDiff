@@ -56,6 +56,68 @@ body {
   align-items: center;
 }
 
+.controls-popover {
+  position: relative;
+}
+
+.controls-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  min-width: 240px;
+  max-width: calc(100vw - 48px);
+  background: #121a26;
+  border: 1px solid var(--divider);
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+  box-shadow: var(--shadow);
+  z-index: 25;
+}
+
+.controls-menu.hidden {
+  display: none;
+}
+
+.menu-section {
+  display: grid;
+  gap: 10px;
+}
+
+.menu-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--number);
+}
+
+.menu-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.menu-toggle {
+  width: 100%;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--divider);
+  background: #0f1520;
+  color: var(--text);
+}
+
+.menu-toggle span {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.menu-toggle input {
+  order: 2;
+}
+
 .btn {
   border: none;
   background: var(--accent);
@@ -71,6 +133,25 @@ body {
 .btn.small {
   padding: 8px 12px;
   font-size: 12px;
+}
+
+.btn.icon-only {
+  padding: 8px;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-gear {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .btn-icon {
@@ -237,11 +318,38 @@ body {
   border-radius: 6px;
   font-size: 12px;
   cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease, transform 0.2s ease;
 }
 
 .inline-btn:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.inline-btn.copied {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0b1018;
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 2px rgba(97, 218, 251, 0.2);
+  animation: copyPulse 1.4s ease;
+}
+
+.inline-btn.copy-failed {
+  border-color: #d07a84;
+  color: #f0c6cc;
+}
+
+@keyframes copyPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(97, 218, 251, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(97, 218, 251, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(97, 218, 251, 0);
+  }
 }
 
 .tab {
@@ -327,24 +435,45 @@ body {
   border-bottom: 1px solid var(--divider);
 }
 
+.pane-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
 .pane-title {
   font-weight: 600;
   font-size: 14px;
+  cursor: pointer;
+  transition: color 0.15s ease;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.pane-title:hover {
+  color: var(--accent);
 }
 
 .pane-controls {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-shrink: 0;
 }
 
 .file-btn {
+  display: inline-flex;
+  align-items: center;
   font-size: 12px;
   border: 1px solid var(--divider);
   padding: 6px 10px;
   border-radius: 6px;
   cursor: pointer;
   color: var(--text);
+  background: transparent;
+  white-space: nowrap;
 }
 
 .file-btn input {
@@ -649,6 +778,13 @@ body {
 
   .toolbar {
     flex-wrap: wrap;
+  }
+
+  .controls-menu {
+    left: 0;
+    right: auto;
+    min-width: 220px;
+    max-width: calc(100vw - 32px);
   }
 
   .tool-right {

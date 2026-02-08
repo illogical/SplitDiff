@@ -17,16 +17,42 @@
       <div class="subtitle">Drag and drop files, paste text, or pick a language. Scroll sync feels like an IDE.</div>
     </div>
     <div class="toolbar">
-      <button id="swapBtn" class="btn">Swap</button>
-      <button id="clearBtn" class="btn ghost">Clear</button>
-      <label class="toggle">
-        <input id="wrapToggle" type="checkbox" />
-        <span>Wrap</span>
-      </label>
-      <label class="toggle">
-        <input id="syncToggle" type="checkbox" checked />
-        <span>Sync Scroll</span>
-      </label>
+      <div class="controls-popover" id="controlsPopover">
+        <button id="controlsToggle" class="btn ghost small icon-only" type="button" aria-expanded="false" aria-controls="controlsMenu" aria-label="Diff controls">
+          <svg class="icon icon-gear" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8z" />
+            <path d="M19.3 12a7.3 7.3 0 0 0-.1-1.2l2-1.5-2-3.5-2.3.9a7.5 7.5 0 0 0-2.1-1.2L12.5 2h-4.9L6.9 5.5a7.5 7.5 0 0 0-2.1 1.2l-2.3-.9-2 3.5 2 1.5a7.7 7.7 0 0 0 0 2.4l-2 1.5 2 3.5 2.3-.9a7.5 7.5 0 0 0 2.1 1.2L7.6 22h4.9l.7-2.5a7.5 7.5 0 0 0 2.1-1.2l2.3.9 2-3.5-2-1.5c.1-.4.1-.8.1-1.2z" />
+          </svg>
+        </button>
+        <div id="controlsMenu" class="controls-menu hidden" role="menu" aria-label="Diff controls">
+          <div class="menu-section">
+            <div class="menu-title">Actions</div>
+            <div class="menu-actions">
+              <button id="swapBtn" class="btn small" type="button">Swap</button>
+              <button id="clearBtn" class="btn ghost small" type="button">Clear</button>
+            </div>
+          </div>
+          <div class="menu-section">
+            <div class="menu-title">View</div>
+            <label class="toggle menu-toggle">
+              <input id="wrapToggle" type="checkbox" />
+              <span>Wrap</span>
+            </label>
+            <label class="toggle menu-toggle">
+              <input id="syncToggle" type="checkbox" checked />
+              <span>Sync Scroll</span>
+            </label>
+            <label class="toggle menu-toggle">
+              <input id="whitespaceToggle" type="checkbox" />
+              <span>Ignore Whitespace</span>
+            </label>
+            <label class="toggle menu-toggle">
+              <input id="collapseToggle" type="checkbox" />
+              <span>Collapse Unchanged</span>
+            </label>
+          </div>
+        </div>
+      </div>
     </div>
   </header>
   <nav class="tabs-bar">
@@ -76,22 +102,18 @@
         <span id="hunkStatus" class="muted">No changes</span>
       </div>
     </div>
-    <div class="tool-right">
-      <label class="toggle">
-        <input id="whitespaceToggle" type="checkbox" />
-        <span>Ignore Whitespace</span>
-      </label>
-      <label class="toggle">
-        <input id="collapseToggle" type="checkbox" />
-        <span>Collapse Unchanged</span>
-      </label>
-    </div>
   </section>
 
   <main class="diff-shell">
     <section class="pane" id="left-pane">
       <div class="pane-header">
-        <div class="pane-title" id="left-name">Left</div>
+        <div class="pane-title-group">
+          <div class="pane-title" id="left-name">Left</div>
+          <label class="file-btn" for="left-file">
+            Choose file
+            <input id="left-file" type="file" aria-label="Choose file for left pane" />
+          </label>
+        </div>
         <div class="pane-controls">
           <button id="left-copy" class="inline-btn" type="button">Copy</button>
           <select id="left-lang" class="select">
@@ -121,7 +143,13 @@
 
     <section class="pane" id="right-pane">
       <div class="pane-header">
-        <div class="pane-title" id="right-name">Right</div>
+        <div class="pane-title-group">
+          <div class="pane-title" id="right-name">Right</div>
+          <label class="file-btn" for="right-file">
+            Choose file
+            <input id="right-file" type="file" aria-label="Choose file for right pane" />
+          </label>
+        </div>
         <div class="pane-controls">
           <button id="right-copy" class="inline-btn" type="button">Copy</button>
           <select id="right-lang" class="select">

@@ -22,6 +22,11 @@ const diffUi = {
   summaryText: "",
 };
 
+const copyFeedback = {
+  left: { timer: null, label: null },
+  right: { timer: null, label: null },
+};
+
 let tabs = [];
 let activeTabId = null;
 
@@ -29,6 +34,7 @@ const elements = {
   left: {
     lang: document.getElementById("left-lang"),
     name: document.getElementById("left-name"),
+    file: document.getElementById("left-file"),
     view: document.getElementById("left-view"),
     hint: document.getElementById("left-hint"),
     lines: document.getElementById("left-lines"),
@@ -36,6 +42,7 @@ const elements = {
   right: {
     lang: document.getElementById("right-lang"),
     name: document.getElementById("right-name"),
+    file: document.getElementById("right-file"),
     view: document.getElementById("right-view"),
     hint: document.getElementById("right-hint"),
     lines: document.getElementById("right-lines"),
@@ -44,6 +51,9 @@ const elements = {
   syncToggle: document.getElementById("syncToggle"),
   swapBtn: document.getElementById("swapBtn"),
   clearBtn: document.getElementById("clearBtn"),
+  controlsToggle: document.getElementById("controlsToggle"),
+  controlsMenu: document.getElementById("controlsMenu"),
+  controlsPopover: document.getElementById("controlsPopover"),
   firstChangeBtn: document.getElementById("firstChangeBtn"),
   prevChangeBtn: document.getElementById("prevChangeBtn"),
   nextChangeBtn: document.getElementById("nextChangeBtn"),
@@ -154,7 +164,10 @@ function updateHints() {
   ["left", "right"].forEach((side) => {
     const hasText = state[side].text.length > 0;
     elements[side].hint.classList.toggle("hidden", hasText);
-    elements[side].name.textContent = state[side].name || (side === "left" ? "Left" : "Right");
+    const fallback = side === "left" ? "Left" : "Right";
+    const label = state[side].name || fallback;
+    elements[side].name.textContent = label;
+    elements[side].name.title = label;
   });
 }
 
@@ -380,7 +393,14 @@ function closeAllTabs() {
   setActiveTab(newId, { skipSave: true });
 }
 
+function setControlsOpen(isOpen) {
+  if (!elements.controlsMenu || !elements.controlsToggle) return;
+  elements.controlsMenu.classList.toggle("hidden", !isOpen);
+  elements.controlsToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+}
+
 function openModal() {
+  setControlsOpen(false);
   elements.modalBackdrop.classList.remove("hidden");
   elements.modalConfirm.focus();
 }
@@ -854,11 +874,39 @@ async function copySideToClipboard(side) {
     return;
   }
   try {
-    await copyToClipboard(text);
-    flashSummary(`${state[side].name || side} copied to clipboard.`);
+    const success = await copyToClipboard(text);
+    if (success) {
+      flashSummary(`${state[side].name || side} copied to clipboard.`);
+      setCopyFeedback(side, "success");
+    } else {
+      flashSummary("Copy failed.");
+      setCopyFeedback(side, "error");
+    }
   } catch {
     flashSummary("Copy failed.");
+    setCopyFeedback(side, "error");
   }
+}
+
+function setCopyFeedback(side, status) {
+  const button = side === "left" ? elements.leftCopyBtn : elements.rightCopyBtn;
+  if (!button) return;
+  const feedback = copyFeedback[side];
+  if (!feedback.label) feedback.label = button.textContent;
+  if (feedback.timer) window.clearTimeout(feedback.timer);
+  button.classList.remove("copied", "copy-failed");
+  if (status === "success") {
+    button.textContent = "Copied";
+    button.classList.add("copied");
+  } else {
+    button.textContent = "Copy failed";
+    button.classList.add("copy-failed");
+  }
+  feedback.timer = window.setTimeout(() => {
+    button.textContent = feedback.label;
+    button.classList.remove("copied", "copy-failed");
+    feedback.timer = null;
+  }, 1600);
 }
 
 function handleLineClick(side, event) {
@@ -990,6 +1038,24 @@ function handleDrop(side, event) {
   }
 }
 
+function fileLabelFromSelection(file, input) {
+  if (!file) return "";
+  return file.path || file.webkitRelativePath || file.name;
+}
+
+function handleFileSelect(side, event) {
+  const input = event.target;
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  const label = fileLabelFromSelection(file, input);
+  reader.onload = () => {
+    setSideText(side, reader.result, label);
+    input.value = "";
+  };
+  reader.readAsText(file);
+}
+
 function setupDropZone(side) {
   const view = elements[side].view;
   let dragDepth = 0;
@@ -1100,6 +1166,8 @@ function setupScrollSync() {
 function setupEvents() {
   elements.leftCopyBtn.addEventListener("click", () => copySideToClipboard("left"));
   elements.rightCopyBtn.addEventListener("click", () => copySideToClipboard("right"));
+  elements.left.file.addEventListener("change", (event) => handleFileSelect("left", event));
+  elements.right.file.addEventListener("change", (event) => handleFileSelect("right", event));
 
   elements.left.lang.addEventListener("change", (event) => {
     state.left.lang = event.target.value;
@@ -1188,9 +1256,24 @@ function setupEvents() {
   elements.modalBackdrop.addEventListener("click", (event) => {
     if (event.target === elements.modalBackdrop) closeModal();
   });
+  if (elements.controlsToggle && elements.controlsMenu && elements.controlsPopover) {
+    elements.controlsToggle.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const isOpen = !elements.controlsMenu.classList.contains("hidden");
+      setControlsOpen(!isOpen);
+    });
+    document.addEventListener("click", (event) => {
+      if (elements.controlsMenu.classList.contains("hidden")) return;
+      if (elements.controlsPopover.contains(event.target)) return;
+      setControlsOpen(false);
+    });
+  }
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !elements.modalBackdrop.classList.contains("hidden")) {
       closeModal();
+    }
+    if (event.key === "Escape" && elements.controlsMenu && !elements.controlsMenu.classList.contains("hidden")) {
+      setControlsOpen(false);
     }
   });
   window.addEventListener("dragover", (event) => {
