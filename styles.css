@@ -21,6 +21,41 @@
   padding: 0;
 }
 
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2b394d #0c1119;
+}
+
+*::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #0c1119;
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #2f3f58, #223247);
+  border-radius: 999px;
+  border: 3px solid #0c1119;
+  box-shadow: inset 0 0 0 1px rgba(97, 218, 251, 0.18);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #3b4f6d, #2a3c53);
+  box-shadow: inset 0 0 0 1px rgba(97, 218, 251, 0.35);
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(180deg, #4a6286, #31465f);
+}
+
+*::-webkit-scrollbar-corner {
+  background: #0c1119;
+}
+
 body {
   font-family: "Space Grotesk", "Segoe UI", sans-serif;
   background: radial-gradient(circle at top left, #1b2433 0%, #0e131b 45%, #0a0f15 100%);

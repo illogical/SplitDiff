@@ -4,7 +4,7 @@
 
 SplitDiff brings the power of professional IDE diff tools to the web. No installation, no server, no data upload—just drag, drop, and compare. Perfect for code reviews, configuration comparisons, and spot-checking changes anywhere.
 
-![SplitDiff Screenshot](images/2026-02-07_20-44-52.png)
+![SplitDiff Screenshot](images/2026-02-07_21-02-41.png)
 
 ---
 
